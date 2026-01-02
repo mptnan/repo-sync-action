@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: write  # Required for pushing branches
     steps:
-      - uses: mptnan/repo-sync-action@v1
+      - uses: mptnan/repo-sync-action@v1.0.0
         with:
           source_repo: 'owner/repo'  # Format: owner/repo
           source_branch: 'main'
@@ -55,7 +55,7 @@ jobs:
     permissions:
       contents: write  # Required for pushing branches
     steps:
-      - uses: mptnan/repo-sync-action@v1
+      - uses: mptnan/repo-sync-action@v1.0.0
         with:
           source_repo: 'octocat/Hello-World'
           source_branch: 'main'
@@ -69,7 +69,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: mptnan/repo-sync-action@v1
+      - uses: mptnan/repo-sync-action@v1.0.0
         with:
           source_repo: 'owner/private-repo'
           github_token: ${{ secrets.MY_PAT }}
@@ -82,7 +82,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: mptnan/repo-sync-action@v1
+      - uses: mptnan/repo-sync-action@v1.0.0
         with:
           source_repo: 'owner/repo'
           exclude_patterns: '.github/workflows/**,*.md,docs/**'
@@ -95,7 +95,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: mptnan/repo-sync-action@v1
+      - uses: mptnan/repo-sync-action@v1.0.0
         with:
           source_repo: 'owner/repo'
           dry_run: true
