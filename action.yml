@@ -1,0 +1,235 @@
+# Example usage:
+#   - uses: your-org/repo-sync-action@v1
+#     with:
+#       source_repo: 'owner/repo'  # Format: owner/repo
+#       source_branch: 'main'
+#       branch_prefix: 'synced'
+#       source_commit: 'abc123'
+#       dry_run: false
+#       github_token: ${{ secrets.MY_PAT }}  # Optional, required only for fetching from private repositories
+
+name: "Sync Repository without workflow files"
+description: "Sync a source repository to the current repository, creating a new branch without workflow files"
+branding:
+  icon: "git-branch"
+  color: "blue"
+
+inputs:
+  source_repo:
+    description: "Source repository in format 'owner/repo' (e.g., 'octocat/Hello-World')"
+    required: true
+  source_branch:
+    description: "Source branch name"
+    required: false
+    default: "main"
+  source_commit:
+    description: "Source commit hash to sync up to (optional, defaults to latest)"
+    required: false
+  branch_prefix:
+    description: 'Output branch name prefix (e.g., "synced")'
+    required: false
+    default: "synced"
+  dry_run:
+    description: "Dry run mode (no push)"
+    required: false
+    default: "false"
+  git_user_name:
+    description: "Git user name for commits"
+    required: false
+    default: "github-actions[bot]"
+  git_user_email:
+    description: "Git user email for commits"
+    required: false
+    default: "github-actions[bot]@users.noreply.github.com"
+  github_token:
+    description: "GitHub token for fetching from source repository (optional). Required if source_repo is private. Push always uses default GITHUB_TOKEN for security."
+    required: false
+  exclude_patterns:
+    description: "Comma-separated glob patterns of files/directories to exclude (e.g., '.github/workflows/**,*.md'). Default: '.github/workflows/**'"
+    required: false
+    default: ".github/workflows/**"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout current repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ github.token }}
+        fetch-depth: 0
+
+    - name: Configure Git
+      shell: bash
+      run: |
+        git config user.name "${{ inputs.git_user_name }}"
+        git config user.email "${{ inputs.git_user_email }}"
+
+    - name: Validate source_repo format
+      shell: bash
+      run: |
+        SOURCE_REPO="${{ inputs.source_repo }}"
+
+        # Validate owner/repo format
+        if [[ ! "$SOURCE_REPO" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$ ]]; then
+          echo "❌ Error: source_repo must be in format 'owner/repo' (e.g., 'octocat/Hello-World')"
+          echo "   Received: $SOURCE_REPO"
+          exit 1
+        fi
+
+    - name: Add upstream remote
+      shell: bash
+      run: |
+        SOURCE_REPO="${{ inputs.source_repo }}"
+        SOURCE_REPO_URL="https://github.com/${SOURCE_REPO}"
+
+        echo "Adding upstream remote: $SOURCE_REPO_URL"
+        git remote add upstream "$SOURCE_REPO_URL"
+
+    - name: Fetch upstream changes
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        # Use url.insteadOf to rewrite URLs without storing token in git remote
+        # This keeps remote URL clean (git remote -v won't show token)
+        # Token is only in git config, not in remote URL
+        if [ -n "$GITHUB_TOKEN" ]; then
+          git config --local url."https://$GITHUB_TOKEN@github.com/".insteadOf "https://github.com/"
+          git fetch upstream
+          git config --local --unset url."https://$GITHUB_TOKEN@github.com/".insteadOf
+        else
+          git fetch upstream
+        fi
+
+    - name: Create temporary branch
+      id: create-branch
+      shell: bash
+      run: |
+        # Create temporary branch name
+        TEMP_BRANCH="temp-sync-${{ github.run_id }}"
+        echo "Creating temporary branch: $TEMP_BRANCH"
+
+        # Create temporary branch from source branch
+        git checkout -b "$TEMP_BRANCH" "upstream/${{ inputs.source_branch }}"
+
+        echo "Temporary branch $TEMP_BRANCH created successfully"
+        echo "temp_branch_name=$TEMP_BRANCH" >> $GITHUB_OUTPUT
+        echo "branch_exists=false" >> $GITHUB_OUTPUT
+
+    - name: Reset to source commit
+      if: steps.create-branch.outputs.branch_exists != 'true' && inputs.source_commit != ''
+      shell: bash
+      run: |
+        # Check if source commit exists
+        echo "Checking if source commit exists: ${{ inputs.source_commit }}"
+        if ! git rev-parse --verify "${{ inputs.source_commit }}" >/dev/null 2>&1; then
+          echo "❌ Error: Source commit ${{ inputs.source_commit }} does not exist"
+          exit 1
+        fi
+
+        # Reset to source commit
+        echo "Resetting to source commit: ${{ inputs.source_commit }}"
+        git reset --hard "${{ inputs.source_commit }}"
+        echo "Successfully reset to commit: ${{ inputs.source_commit }}"
+
+    - name: Create final branch
+      id: create-final-branch
+      if: steps.create-branch.outputs.branch_exists != 'true'
+      shell: bash
+      run: |
+        # Get current commit hash (6 characters)
+        CURRENT_COMMIT=$(git rev-parse --short=6 HEAD)
+        echo "Current commit hash: $CURRENT_COMMIT"
+
+        # Generate final branch name
+        FINAL_BRANCH="${{ inputs.branch_prefix }}-$CURRENT_COMMIT"
+        echo "Final branch name: $FINAL_BRANCH"
+
+        # Skip if branch already exists
+        if git show-ref --verify --quiet refs/heads/$FINAL_BRANCH; then
+          echo "Branch $FINAL_BRANCH already exists, skipping creation"
+          echo "branch_exists=true" >> $GITHUB_OUTPUT
+          echo "final_branch_name=$FINAL_BRANCH" >> $GITHUB_OUTPUT
+        else
+          # Create final branch from temporary branch
+          git checkout -b "$FINAL_BRANCH"
+          echo "Final branch $FINAL_BRANCH created successfully"
+          echo "branch_exists=false" >> $GITHUB_OUTPUT
+          echo "final_branch_name=$FINAL_BRANCH" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Remove excluded files
+      if: steps.create-branch.outputs.branch_exists != 'true' && inputs.exclude_patterns != ''
+      shell: bash
+      run: |
+        EXCLUDE_PATTERNS="${{ inputs.exclude_patterns }}"
+
+        # Skip if exclude_patterns is empty
+        if [ -z "$EXCLUDE_PATTERNS" ]; then
+          echo "No exclude patterns specified, skipping removal"
+          exit 0
+        fi
+
+        # Enable globstar for ** pattern support
+        shopt -s globstar nullglob
+
+        # Split comma-separated patterns
+        IFS=',' read -ra PATTERNS <<< "$EXCLUDE_PATTERNS"
+
+        REMOVED_COUNT=0
+        for PATTERN in "${PATTERNS[@]}"; do
+          # Trim whitespace
+          PATTERN=$(echo "$PATTERN" | xargs)
+          
+          if [ -z "$PATTERN" ]; then
+            continue
+          fi
+          
+          echo "Processing pattern: $PATTERN"
+          
+          # Expand glob pattern and remove matching files/directories
+          # Exclude .git directory from matching
+          for ITEM in $PATTERN; do
+            # Skip .git directory
+            if [[ "$ITEM" == ./.git* ]] || [[ "$ITEM" == .git* ]]; then
+              continue
+            fi
+            
+            if [ -e "$ITEM" ]; then
+              echo "Removing: $ITEM"
+              rm -rf "$ITEM"
+              REMOVED_COUNT=$((REMOVED_COUNT + 1))
+            fi
+          done
+        done
+
+        # Commit changes if any files were removed
+        if [ $REMOVED_COUNT -gt 0 ]; then
+          git add -A
+          git commit -m "Remove excluded files from synced branch" || echo "No changes to commit"
+          echo "Removed $REMOVED_COUNT item(s)"
+        else
+          echo "No files matched the exclude patterns"
+        fi
+
+    - name: Push branch
+      if: steps.create-branch.outputs.branch_exists != 'true' && inputs.dry_run != 'true'
+      shell: bash
+      run: |
+        FINAL_BRANCH="${{ steps.create-final-branch.outputs.final_branch_name }}"
+        echo "📤 Pushing branch $FINAL_BRANCH to origin..."
+        git push origin "$FINAL_BRANCH"
+        echo "✅ Successfully pushed branch: $FINAL_BRANCH"
+
+    - name: Display logs
+      shell: bash
+      run: |
+        FINAL_BRANCH="${{ steps.create-final-branch.outputs.final_branch_name }}"
+
+        if [ "${{ steps.create-branch.outputs.branch_exists }}" = "true" ]; then
+          echo "ℹ️  Branch $FINAL_BRANCH already exists - skipping all operations"
+        elif [ "${{ inputs.dry_run }}" = "true" ]; then
+          echo "🔍 DRY RUN MODE - Would push to origin/$FINAL_BRANCH"
+        else
+          echo "✅ Sync operation completed successfully"
+        fi
