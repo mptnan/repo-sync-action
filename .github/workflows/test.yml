@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Sync repository
-        uses: mptnan/repo-sync-action@v0
+        uses: mptnan/repo-sync-action@v0.1.0
         with:
           source_repo: ${{ inputs.source_repo }}
           source_branch: ${{ inputs.source_branch }}
