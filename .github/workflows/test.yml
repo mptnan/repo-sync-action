@@ -34,6 +34,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for pushing branches
     steps:
       - name: Sync repository
         uses: mptnan/repo-sync-action@v0.1.0
