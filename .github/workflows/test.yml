@@ -1,0 +1,47 @@
+name: Test repo-sync-action
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: 'Source repository (owner/repo)'
+        required: true
+        type: string
+      source_branch:
+        description: 'Source branch name'
+        required: true
+        type: string
+      source_commit:
+        description: 'Source commit hash (optional)'
+        required: false
+        type: string
+      branch_prefix:
+        description: 'Output branch name prefix'
+        required: false
+        type: string
+        default: 'synced'
+      dry_run:
+        description: 'Dry run mode (no push)'
+        required: false
+        type: boolean
+        default: false
+      exclude_patterns:
+        description: 'Comma-separated glob patterns to exclude'
+        required: false
+        type: string
+        default: '.github/workflows/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync repository
+        uses: mptnan/repo-sync-action@v0
+        with:
+          source_repo: ${{ inputs.source_repo }}
+          source_branch: ${{ inputs.source_branch }}
+          source_commit: ${{ inputs.source_commit }}
+          branch_prefix: ${{ inputs.branch_prefix }}
+          dry_run: ${{ inputs.dry_run }}
+          exclude_patterns: ${{ inputs.exclude_patterns }}
+
