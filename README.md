@@ -13,15 +13,21 @@ A GitHub Action to sync a source repository to the current repository, creating 
 ## Usage
 
 ```yaml
-- uses: your-org/repo-sync-action@v1
-  with:
-    source_repo: 'owner/repo'  # Format: owner/repo
-    source_branch: 'main'
-    branch_prefix: 'synced'
-    source_commit: ''  # Optional: specific commit hash from source
-    dry_run: false
-    exclude_patterns: '.github/workflows/**'  # Optional: files to exclude
-    github_token: ${{ secrets.MY_PAT }}  # Optional: for private repos
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for pushing branches
+    steps:
+      - uses: your-org/repo-sync-action@v1
+        with:
+          source_repo: 'owner/repo'  # Format: owner/repo
+          source_branch: 'main'
+          branch_prefix: 'synced'
+          source_commit: ''  # Optional: specific commit hash from source
+          dry_run: false
+          exclude_patterns: '.github/workflows/**'  # Optional: files to exclude
+          github_token: ${{ secrets.MY_PAT }}  # Optional: for private repos
 ```
 
 ## Inputs
@@ -46,6 +52,8 @@ A GitHub Action to sync a source repository to the current repository, creating 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for pushing branches
     steps:
       - uses: your-org/repo-sync-action@v1
         with:
@@ -95,6 +103,7 @@ jobs:
 
 ## Notes
 
+- **Permissions**: This action requires `contents: write` permission to push branches. Add `permissions: contents: write` to your job if your repository uses default read-only permissions.
 - Push always uses the default `GITHUB_TOKEN` (scoped to the repository)
 - `github_token` is only used for fetching from private source repositories
 - Excluded files are removed before creating the branch
