@@ -27,7 +27,8 @@ jobs:
           source_commit: ''  # Optional: specific commit hash from source
           dry_run: false
           exclude_patterns: '.github/workflows/**'  # Optional: files to exclude
-          github_token: ${{ secrets.MY_PAT }}  # Optional: for private repos
+          fetch_token: ${{ secrets.MY_PAT }}  # Optional: for fetching from private source repos
+          push_token: ${{ secrets.MY_PAT }}  # Optional: for pushing branches (if different from fetch_token)
 ```
 
 ## Inputs
@@ -40,7 +41,8 @@ jobs:
 | `branch_prefix` | Output branch name prefix | No | `synced` |
 | `dry_run` | Dry run mode (no push) | No | `false` |
 | `exclude_patterns` | Comma-separated glob patterns to exclude | No | `.github/workflows/**` |
-| `github_token` | GitHub token for private repos | No | - |
+| `fetch_token` | GitHub token for fetching from source repository | No | Default GITHUB_TOKEN |
+| `push_token` | GitHub token for pushing branches | No | Default GITHUB_TOKEN |
 | `git_user_name` | Git user name for commits | No | `github-actions[bot]` |
 | `git_user_email` | Git user email for commits | No | `github-actions[bot]@users.noreply.github.com` |
 
@@ -55,7 +57,7 @@ jobs:
     permissions:
       contents: write  # Required for pushing branches
     steps:
-      - uses: mptnan/repo-sync-action@v1.0.0
+      - uses: mptnan/repo-sync-action@v1.1.0
         with:
           source_repo: 'octocat/Hello-World'
           source_branch: 'main'
@@ -69,10 +71,10 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: mptnan/repo-sync-action@v1.0.0
+      - uses: mptnan/repo-sync-action@v1.1.0
         with:
           source_repo: 'owner/private-repo'
-          github_token: ${{ secrets.MY_PAT }}
+          fetch_token: ${{ secrets.MY_PAT }}  # Required for private source repos
 ```
 
 ### Custom exclude patterns
@@ -82,7 +84,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: mptnan/repo-sync-action@v1.0.0
+      - uses: mptnan/repo-sync-action@v1.1.0
         with:
           source_repo: 'owner/repo'
           exclude_patterns: '.github/workflows/**,*.md,docs/**'
@@ -95,7 +97,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: mptnan/repo-sync-action@v1.0.0
+      - uses: mptnan/repo-sync-action@v1.1.0
         with:
           source_repo: 'owner/repo'
           dry_run: true
@@ -104,8 +106,8 @@ jobs:
 ## Notes
 
 - **Permissions**: This action requires `contents: write` permission to push branches. Add `permissions: contents: write` to your job if your repository uses default read-only permissions.
-- Push always uses the default `GITHUB_TOKEN` (scoped to the repository)
-- `github_token` is only used for fetching from private source repositories
+- `fetch_token` is used for fetching from the source repository. If not specified, uses default `GITHUB_TOKEN`.
+- `push_token` is used for pushing branches. If not specified, uses default `GITHUB_TOKEN`.
 - Excluded files are removed before creating the branch
 - Branch names follow the pattern: `{branch_prefix}-{commit_hash}`
 
