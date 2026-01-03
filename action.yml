@@ -82,13 +82,22 @@ runs:
       env:
         FETCH_TOKEN: ${{ inputs.fetch_token }}
       run: |
-        # Use url.insteadOf to rewrite URLs without storing token in git remote
-        # This keeps remote URL clean (git remote -v won't show token)
-        # Token is only in git config, not in remote URL
+        # Configure fetch token if specified
         if [ -n "$FETCH_TOKEN" ]; then
-          git config --local url."https://$FETCH_TOKEN@github.com/".insteadOf "https://github.com/"
+          # Get current upstream remote URL
+          ORIGINAL_UPSTREAM_URL=$(git remote get-url upstream)
+          
+          # Temporarily set upstream remote URL with token
+          # This method is more reliable than url.insteadOf because it directly changes
+          # the remote URL, which takes precedence over credential helper set by actions/checkout
+          SOURCE_REPO="${{ inputs.source_repo }}"
+          git remote set-url upstream "https://$FETCH_TOKEN@github.com/${SOURCE_REPO}.git"
+          
+          # Fetch using the token
           git fetch upstream
-          git config --local --unset url."https://$FETCH_TOKEN@github.com/".insteadOf
+          
+          # Restore original upstream remote URL
+          git remote set-url upstream "$ORIGINAL_UPSTREAM_URL"
         else
           git fetch upstream
         fi
@@ -215,9 +224,19 @@ runs:
 
         # Configure push token if specified
         if [ -n "$PUSH_TOKEN" ]; then
-          git config --local url."https://$PUSH_TOKEN@github.com/".insteadOf "https://github.com/"
+          # Get current remote URL
+          ORIGINAL_URL=$(git remote get-url origin)
+          
+          # Temporarily set remote URL with token
+          # This method is more reliable than url.insteadOf because it directly changes
+          # the remote URL, which takes precedence over credential helper set by actions/checkout
+          git remote set-url origin "https://$PUSH_TOKEN@github.com/${GITHUB_REPOSITORY}.git"
+          
+          # Push using the token
           git push origin "$FINAL_BRANCH"
-          git config --local --unset url."https://$PUSH_TOKEN@github.com/".insteadOf
+          
+          # Restore original remote URL
+          git remote set-url origin "$ORIGINAL_URL"
         else
           git push origin "$FINAL_BRANCH"
         fi
