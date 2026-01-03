@@ -31,8 +31,11 @@ inputs:
     description: "Git user email for commits"
     required: false
     default: "github-actions[bot]@users.noreply.github.com"
-  github_token:
-    description: "GitHub token for fetching from source repository (optional). Required if source_repo is private. Push always uses default GITHUB_TOKEN for security."
+  fetch_token:
+    description: "GitHub token for fetching from source repository (optional). Required if source_repo is private. If not specified, uses default GITHUB_TOKEN."
+    required: false
+  push_token:
+    description: "GitHub token for pushing branches (optional). If not specified, uses default GITHUB_TOKEN."
     required: false
   exclude_patterns:
     description: "Comma-separated glob patterns of files/directories to exclude (e.g., '.github/workflows/**,*.md'). Default: '.github/workflows/**'"
@@ -45,7 +48,6 @@ runs:
     - name: Checkout current repository
       uses: actions/checkout@v4
       with:
-        token: ${{ github.token }}
         fetch-depth: 0
 
     - name: Configure Git
@@ -78,15 +80,15 @@ runs:
     - name: Fetch upstream changes
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
+        FETCH_TOKEN: ${{ inputs.fetch_token }}
       run: |
         # Use url.insteadOf to rewrite URLs without storing token in git remote
         # This keeps remote URL clean (git remote -v won't show token)
         # Token is only in git config, not in remote URL
-        if [ -n "$GITHUB_TOKEN" ]; then
-          git config --local url."https://$GITHUB_TOKEN@github.com/".insteadOf "https://github.com/"
+        if [ -n "$FETCH_TOKEN" ]; then
+          git config --local url."https://$FETCH_TOKEN@github.com/".insteadOf "https://github.com/"
           git fetch upstream
-          git config --local --unset url."https://$GITHUB_TOKEN@github.com/".insteadOf
+          git config --local --unset url."https://$FETCH_TOKEN@github.com/".insteadOf
         else
           git fetch upstream
         fi
@@ -205,10 +207,21 @@ runs:
     - name: Push branch
       if: steps.create-branch.outputs.branch_exists != 'true' && inputs.dry_run != 'true'
       shell: bash
+      env:
+        PUSH_TOKEN: ${{ inputs.push_token }}
       run: |
         FINAL_BRANCH="${{ steps.create-final-branch.outputs.final_branch_name }}"
         echo "📤 Pushing branch $FINAL_BRANCH to origin..."
-        git push origin "$FINAL_BRANCH"
+
+        # Configure push token if specified
+        if [ -n "$PUSH_TOKEN" ]; then
+          git config --local url."https://$PUSH_TOKEN@github.com/".insteadOf "https://github.com/"
+          git push origin "$FINAL_BRANCH"
+          git config --local --unset url."https://$PUSH_TOKEN@github.com/".insteadOf
+        else
+          git push origin "$FINAL_BRANCH"
+        fi
+
         echo "✅ Successfully pushed branch: $FINAL_BRANCH"
 
     - name: Display logs
