@@ -37,10 +37,6 @@ inputs:
   push_token:
     description: "GitHub token for pushing branches (optional). If not specified, uses default GITHUB_TOKEN."
     required: false
-  exclude_patterns:
-    description: "Comma-separated glob patterns of files/directories to exclude (e.g., '.github/workflows/**,*.md'). Default: '.github/workflows/**'"
-    required: false
-    default: ".github/workflows/**"
 
 runs:
   using: "composite"
@@ -159,58 +155,21 @@ runs:
           echo "final_branch_name=$FINAL_BRANCH" >> $GITHUB_OUTPUT
         fi
 
-    - name: Remove excluded files
-      if: steps.create-branch.outputs.branch_exists != 'true' && inputs.exclude_patterns != ''
+    - name: Remove workflow files
+      if: steps.create-branch.outputs.branch_exists != 'true'
       shell: bash
       run: |
-        EXCLUDE_PATTERNS="${{ inputs.exclude_patterns }}"
-
-        # Skip if exclude_patterns is empty
-        if [ -z "$EXCLUDE_PATTERNS" ]; then
-          echo "No exclude patterns specified, skipping removal"
-          exit 0
-        fi
-
-        # Enable globstar for ** pattern support
-        shopt -s globstar nullglob
-
-        # Split comma-separated patterns
-        IFS=',' read -ra PATTERNS <<< "$EXCLUDE_PATTERNS"
-
-        REMOVED_COUNT=0
-        for PATTERN in "${PATTERNS[@]}"; do
-          # Trim whitespace
-          PATTERN=$(echo "$PATTERN" | xargs)
-          
-          if [ -z "$PATTERN" ]; then
-            continue
-          fi
-          
-          echo "Processing pattern: $PATTERN"
-          
-          # Expand glob pattern and remove matching files/directories
-          # Exclude .git directory from matching
-          for ITEM in $PATTERN; do
-            # Skip .git directory
-            if [[ "$ITEM" == ./.git* ]] || [[ "$ITEM" == .git* ]]; then
-              continue
-            fi
-            
-            if [ -e "$ITEM" ]; then
-              echo "Removing: $ITEM"
-              rm -rf "$ITEM"
-              REMOVED_COUNT=$((REMOVED_COUNT + 1))
-            fi
-          done
-        done
-
-        # Commit changes if any files were removed
-        if [ $REMOVED_COUNT -gt 0 ]; then
+        # Remove .github/workflows/ directory if it exists
+        # This is necessary because GitHub Actions does not allow workflows to be pushed by GitHub Actions
+        # to prevent recursive workflow triggers and security issues
+        if [ -d ".github/workflows" ]; then
+          echo "Removing .github/workflows/ directory"
+          rm -rf .github/workflows
           git add -A
-          git commit -m "Remove excluded files from synced branch" || echo "No changes to commit"
-          echo "Removed $REMOVED_COUNT item(s)"
+          git commit -m "Remove workflow files from synced branch" || echo "No changes to commit"
+          echo "Removed .github/workflows/ directory"
         else
-          echo "No files matched the exclude patterns"
+          echo ".github/workflows/ directory does not exist, skipping removal"
         fi
 
     - name: Push branch

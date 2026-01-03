@@ -6,7 +6,7 @@ A GitHub Action to sync a source repository to the current repository, creating 
 
 - Sync from any GitHub repository (public or private)
 - Create a branch with commit hash suffix (e.g., `synced-abc123`)
-- Exclude files/directories using glob patterns
+- Automatically excludes `.github/workflows/` directory
 - Support for private repositories via token authentication
 - Dry run mode for testing
 
@@ -26,7 +26,6 @@ jobs:
           branch_prefix: 'synced'
           source_commit: ''  # Optional: specific commit hash from source
           dry_run: false
-          exclude_patterns: '.github/workflows/**'  # Optional: files to exclude
           fetch_token: ${{ secrets.MY_PAT }}  # Optional: for fetching from private source repos
           push_token: ${{ secrets.MY_PAT }}  # Optional: for pushing branches (if different from fetch_token)
 ```
@@ -40,7 +39,6 @@ jobs:
 | `source_commit` | Source commit hash to sync to (optional) | No | Latest |
 | `branch_prefix` | Output branch name prefix | No | `synced` |
 | `dry_run` | Dry run mode (no push) | No | `false` |
-| `exclude_patterns` | Comma-separated glob patterns to exclude | No | `.github/workflows/**` |
 | `fetch_token` | GitHub token for fetching from source repository | No | Default GITHUB_TOKEN |
 | `push_token` | GitHub token for pushing branches | No | Default GITHUB_TOKEN |
 | `git_user_name` | Git user name for commits | No | `github-actions[bot]` |
@@ -77,19 +75,6 @@ jobs:
           fetch_token: ${{ secrets.MY_PAT }}  # Required for private source repos
 ```
 
-### Custom exclude patterns
-
-```yaml
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: mptnan/repo-sync-action@v1.1.0
-        with:
-          source_repo: 'owner/repo'
-          exclude_patterns: '.github/workflows/**,*.md,docs/**'
-```
-
 ### Dry run mode
 
 ```yaml
@@ -108,7 +93,7 @@ jobs:
 - **Permissions**: This action requires `contents: write` permission to push branches. Add `permissions: contents: write` to your job if your repository uses default read-only permissions.
 - `fetch_token` is used for fetching from the source repository. If not specified, uses default `GITHUB_TOKEN`.
 - `push_token` is used for pushing branches. If not specified, uses default `GITHUB_TOKEN`.
-- Excluded files are removed before creating the branch
+- The `.github/workflows/` directory is automatically removed from the synced branch if it exists. This is necessary because GitHub Actions does not allow workflows to be pushed by GitHub Actions to prevent recursive workflow triggers and security issues.
 - Branch names follow the pattern: `{branch_prefix}-{commit_hash}`
 
 ## License
